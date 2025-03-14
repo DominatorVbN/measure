@@ -360,6 +360,12 @@ func UploadBuilds(url, apiKey string, app app.App) (string, error) {
 		}
 		fw.Write([]byte(mappingType))
 
+		fw, err = w.CreateFormField("platform")
+		if err != nil {
+			return "", err
+		}
+		fw.Write([]byte(attribute.Platform))
+
 		fw, err = w.CreateFormField("build_size")
 		if err != nil {
 			return "", err
