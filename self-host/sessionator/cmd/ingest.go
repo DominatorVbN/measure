@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"backend/api/codec"
-	"backend/api/platform"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -326,6 +325,11 @@ func UploadBuilds(url, apiKey string, app app.App) (string, error) {
 		}
 		fw.Write([]byte(code))
 
+		// print all mapping types
+		for _, mappingType := range build.MappingTypes {
+			fmt.Printf("mapping type: %s\n", mappingType)
+		}
+
 		for index, mappingType := range build.MappingTypes {
 			mappingFile := build.MappingFiles[index]
 			f, err := os.Open(mappingFile)
@@ -333,8 +337,8 @@ func UploadBuilds(url, apiKey string, app app.App) (string, error) {
 				return "", err
 			}
 
-			switch attribute.Platform {
-			case platform.IOS:
+			switch mappingType {
+			case "dsym":
 				if err := codec.IsTarGz(f); err != nil {
 					return "", err
 				}
