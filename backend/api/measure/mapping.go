@@ -499,8 +499,15 @@ func (bm *BuildMapping) extractDif() (err error) {
 				return errRead
 			}
 
-			arch := "arm64"
-			debugId := uuid.NewSHA1(uuid.NameSpaceDNS, bytes)
+			debugID, errBuildID := symbol.GetBuildIDFromELF(bytes)
+			if errBuildID != nil {
+				return errBuildID
+			}
+
+			arch, errArch := symbol.GetArchFromELF(bytes)
+			if errArch != nil {
+				return errArch
+			}
 
 			type meta struct {
 				Name       string `json:"name"`
@@ -522,13 +529,13 @@ func (bm *BuildMapping) extractDif() (err error) {
 
 			mf.Difs = append(mf.Difs, &symbol.Dif{
 				Data: metaJson,
-				Key:  symbol.BuildUnifiedLayout(debugId.String()) + "/meta",
+				Key:  symbol.BuildUnifiedLayout(debugID) + "/meta",
 				Meta: true,
 			})
 
 			mf.Difs = append(mf.Difs, &symbol.Dif{
 				Data: bytes,
-				Key:  symbol.BuildUnifiedLayout(debugId.String()) + "/debuginfo",
+				Key:  symbol.BuildUnifiedLayout(debugID) + "/debuginfo",
 				Meta: false,
 			})
 
