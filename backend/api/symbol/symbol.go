@@ -10,6 +10,9 @@ const (
 	// TypeDsym represents the "dSYM"
 	// type of mapping symbolication.
 	TypeDsym
+	// Type ElfDebugInfo represents the "ELF"
+	// type of mapping symbolication.
+	TypeElfDebugInfo
 )
 
 // MappingType represents the mapping
@@ -26,5 +29,7 @@ func (m MappingType) String() string {
 		return "proguard"
 	case TypeDsym:
 		return "dsym"
+	case TypeElfDebugInfo:
+		return "elf_debug_info"
 	}
 }

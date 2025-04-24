@@ -3,6 +3,7 @@ package measure
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -163,6 +164,11 @@ func (bm *BuildMapping) validate(app *App) (code int, err error) {
 			defer f.Close()
 			if err := codec.IsTarGz(f); err != nil {
 				return http.StatusBadRequest, err
+			}
+		case symbol.TypeElfDebugInfo.String():
+			if pltfrm != platform.Android {
+				err = platformMappingErr
+				return
 			}
 		default:
 			err = fmt.Errorf("unknown mapping type %q", mappingType)
@@ -473,10 +479,59 @@ func (bm *BuildMapping) extractDif() (err error) {
 			}
 
 			for _, entity := range entities {
-				for _, difs := range entity {
-					bm.MappingFiles[index].Difs = append(bm.MappingFiles[index].Difs, difs)
-				}
+				bm.MappingFiles[index].Difs = append(bm.MappingFiles[index].Difs, entity...)
 			}
+		case symbol.TypeElfDebugInfo.String():
+			mf := bm.MappingFiles[index]
+			f, errHeader := mf.Header.Open()
+			if errHeader != nil {
+				return errHeader
+			}
+
+			defer func() {
+				if err := f.Close(); err != nil {
+					fmt.Println("failed to close ELF mapping file")
+				}
+			}()
+
+			bytes, errRead := io.ReadAll(f)
+			if errRead != nil {
+				return errRead
+			}
+
+			arch := "arm64"
+			debugId := uuid.NewSHA1(uuid.NameSpaceDNS, bytes)
+
+			type meta struct {
+				Name       string `json:"name"`
+				Arch       string `json:"arch"`
+				FileFormat string `json:"file_format"`
+			}
+
+			m := meta{
+				Name:       mf.Header.Filename,
+				Arch:       arch,
+				FileFormat: "elf",
+			}
+
+			metaJson, jsonErr := json.Marshal(m)
+			if jsonErr != nil {
+				err = jsonErr
+				return
+			}
+
+			mf.Difs = append(mf.Difs, &symbol.Dif{
+				Data: metaJson,
+				Key:  symbol.BuildUnifiedLayout(debugId.String()) + "/meta",
+				Meta: true,
+			})
+
+			mf.Difs = append(mf.Difs, &symbol.Dif{
+				Data: bytes,
+				Key:  symbol.BuildUnifiedLayout(debugId.String()) + "/debuginfo",
+				Meta: false,
+			})
+
 		default:
 			err = fmt.Errorf("failed to recognize mapping type %q", mappingType)
 		}
@@ -546,6 +601,43 @@ func (bm *BuildMapping) upload(ctx context.Context) (err error) {
 				continue
 			}
 			metadata["mapping_type"] = symbol.TypeDsym.String()
+			metadata["original_file_name"] = mf.Header.Filename
+			for _, dif := range mf.Difs {
+				if !dif.Meta {
+					putObjectInput := &s3.PutObjectInput{
+						Bucket:   aws.String(config.SymbolsBucket),
+						Key:      aws.String(dif.Key),
+						Body:     bytes.NewReader(dif.Data),
+						Metadata: metadata,
+					}
+					_, err = client.PutObject(ctx, putObjectInput)
+					if err != nil {
+						return
+					}
+					bm.MappingFiles[index].Key = dif.Key
+					bm.MappingFiles[index].Location = buildLocation(dif.Key)
+					bm.MappingFiles[index].UploadComplete = true
+				}
+
+				if dif.Meta {
+					putObjectInput := &s3.PutObjectInput{
+						Bucket:   aws.String(config.SymbolsBucket),
+						Key:      aws.String(dif.Key),
+						Body:     bytes.NewReader(dif.Data),
+						Metadata: metadata,
+					}
+					_, err = client.PutObject(ctx, putObjectInput)
+					if err != nil {
+						return
+					}
+				}
+			}
+		case symbol.TypeElfDebugInfo.String():
+			mf := bm.MappingFiles[index]
+			if !mf.ShouldUpload {
+				continue
+			}
+			metadata["mapping_type"] = symbol.TypeElfDebugInfo.String()
 			metadata["original_file_name"] = mf.Header.Filename
 			for _, dif := range mf.Difs {
 				if !dif.Meta {
