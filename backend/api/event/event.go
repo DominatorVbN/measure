@@ -918,9 +918,9 @@ func (e *EventField) Validate() error {
 	}
 
 	if e.IsException() {
-		if len(e.Exception.Exceptions) < 1 || len(e.Exception.Threads) < 1 {
-			return fmt.Errorf(`%q must contain at least one exception & thread`, `exception`)
-		}
+		// if len(e.Exception.Exceptions) < 1 || len(e.Exception.Threads) < 1 {
+		// 	return fmt.Errorf(`%q must contain at least one exception & thread`, `exception`)
+		// }
 	}
 
 	if e.IsAppExit() {
