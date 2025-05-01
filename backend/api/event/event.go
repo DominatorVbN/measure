@@ -181,6 +181,7 @@ var iOSValidTypes = []string{
 }
 
 var flutterValidTypes = []string{
+	TypeException,
 	TypeCustom,
 }
 
