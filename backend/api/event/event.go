@@ -865,6 +865,11 @@ func (e EventField) NeedsSymbolication() (result bool) {
 			result = true
 			return
 		}
+	case platform.Flutter:
+		if e.IsException() {
+			result = true
+			return
+		}
 	}
 
 	return
